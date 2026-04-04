@@ -1,0 +1,57 @@
+desc: MIDI -> ReaPitch Params (Oct/Semi/Cents)
+
+slider1:60<0,127,1>Center Note (C4=60)
+slider2:12<0,24,1>Pitch Bend Range (Semitones)
+
+@init
+// --- ReaPitch側のレンジ設定と必ず一致させること ---
+range_oct = 2;    // Shift (octaves)
+range_semi = 18;  // Shift (full semitones)
+range_cents = 200; // Shift (cents)
+
+@gfx 400 300
+gfx_r=gfx_g=gfx_b=1; gfx_rect(0,0,gfx_w,gfx_h);
+gfx_r=gfx_g=gfx_b=0; gfx_setfont(1,"MS Shell Dlg",11);
+
+x=20; y=10; h=15;
+gfx_x=x-10; gfx_y=y; gfx_drawstr("【設定手順】"); y+=h+5;
+gfx_x=x-10; gfx_y=y; gfx_drawstr("1 このJSFXをReaPitchより前にインサート"); y+=h+5;
+gfx_x=x-10; gfx_y=y; gfx_drawstr("2 MIDIトラックから音声トラックにセンドを作成"); y+=h;
+gfx_x=x; gfx_y=y; gfx_drawstr("※ MIDIのPitch Bend Rangeは本FXで指定した値に準拠"); y+=h+5;
+gfx_x=x-10; gfx_y=y; gfx_drawstr("3 ReaPitchの Param > Parameter modulation/MIDI link >"); y+=h;
+gfx_x=x; gfx_y=y; gfx_drawstr("Shift (cents), (semitones), (oct) に対して以下のように設定"); y+=h+5;
+gfx_x=x; gfx_y=y; gfx_drawstr("[Link from MIDI or FX parameter] にチェック"); y+=h;
+gfx_x=x; gfx_y=y; gfx_drawstr("プルダウンから以下を選択"); y+=h;
+gfx_x=x; gfx_y=y; gfx_drawstr("MIDI > CC > "); x=gfx_x; gfx_drawstr("20 (cents)"); y+=h; 
+gfx_x=x; gfx_y=y; gfx_drawstr("21 (semitones)"); y+=h;
+gfx_x=x; gfx_y=y; gfx_drawstr("22 (oct)"); y+=h;
+
+@block
+while (midirecv(ts, msg1, msg2, msg3)) (
+  status = msg1 & $xF0;
+  
+  status == $x90 && msg3 > 0 ? cur_note = msg2;
+  status == $xE0 ? pb_val = (msg2 | (msg3 << 7)) - 8192;
+
+  // 1. 基準値からのズレを半音単位で算出
+  total_diff = (cur_note - slider1) + (pb_val / 8192 * slider2);
+
+  // 2. オクターブ成分 (CC 22)
+  oct_val = floor(total_diff / 12);
+  cc_oct = floor(63.5 + (oct_val * (127 / (range_oct * 2))) + 0.5);
+  midisend(ts, $xB0, 22, max(0, min(127, cc_oct)));
+
+  // 3. 半音成分 (CC 21)
+  rem_semi = total_diff - (oct_val * 12);
+  semi_int = floor(rem_semi); 
+  cc_semi = floor(63.5 + (semi_int * (127 / (range_semi * 2))) + 0.5);
+  midisend(ts, $xB0, 21, max(0, min(127, cc_semi)));
+
+  // 4. セント成分 (CC 20)
+  rem_cents = (rem_semi - semi_int) * 100;
+  cc_cents = floor(63.5 + (rem_cents * (127 / (range_cents * 2))) + 0.5);
+  midisend(ts, $xB0, 20, max(0, min(127, cc_cents)));
+
+  // 元のMIDIノートを後続に流す（遮断したいのでコメントアウト）
+  // midisend(ts, msg1, msg2, msg3); 
+);

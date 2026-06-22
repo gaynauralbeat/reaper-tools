@@ -22,6 +22,7 @@ local tools = {
   require("tools/Trim to source length (and avoid overlap)"),
   require("tools/Trim item ends to grid"),
   require("tools/Fade by bar fraction"),
+  require("tools/Set source offsets from timeline"),
 }
 
 ------------------------------------------------------------

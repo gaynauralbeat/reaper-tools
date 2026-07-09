@@ -15,15 +15,55 @@ reaper.ImGui_SetNextWindowDockID(ctx, 0)
 -- Load tools
 ------------------------------------------------------------
 local script_path = debug.getinfo(1, "S").source:match("@?(.*[\\/])")
-package.path = script_path .. "?.lua;" .. script_path .. "?/init.lua;" .. package.path
 
-local tools = {
-  require("tools/Set item playrate by simple ratios"),
-  require("tools/Trim to source length (and avoid overlap)"),
-  require("tools/Trim item ends to grid"),
-  require("tools/Fade by bar fraction"),
-  require("tools/Set source offsets from timeline"),
-}
+package.path =
+    script_path .. "?.lua;" ..
+    script_path .. "?/init.lua;" ..
+    package.path
+
+local tools = {}
+local tools_path = script_path .. "tools"
+
+local i = 0
+while true do
+  local file = reaper.EnumerateFiles(tools_path, i)
+  
+  if not file then break end
+
+  if file:match("%.lua$") then
+    local module = "tools." .. file:gsub("%.lua$", "")
+    local ok, tool = pcall(require, module)
+
+    if ok and type(tool) == "table" then
+      table.insert(tools, tool)
+    else
+      reaper.ShowConsoleMsg(
+        ("Failed to load %s\n%s\n\n")
+        :format(module, tostring(tool))
+      )
+    end
+  end
+
+  i = i + 1
+end
+
+------------------------------------------------------------
+-- Sort tools
+------------------------------------------------------------
+table.sort(tools, function(a, b)
+  local ca = a.column or 1
+  local cb = b.column or 1
+
+  if ca ~= cb then
+    return ca < cb
+  end
+  
+  local ta = a.title or a.id or ""
+  local tb = b.title or b.id or ""
+
+  return ta < tb
+
+end)
 
 ------------------------------------------------------------
 -- Calculate column count
